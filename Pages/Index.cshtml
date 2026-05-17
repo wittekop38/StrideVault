@@ -46,13 +46,37 @@
     </div>
 
     <!-- STATS ROW -->
-    <div class="stats-grid stats-grid--4">
+    @{
+        var totalTime = TimeSpan.FromSeconds(Model.Stats.TotalMovingTimeSecs);
+        var totalTimeStr = totalTime.TotalDays >= 1
+            ? $"{(int)totalTime.TotalDays}d {totalTime.Hours}h"
+            : totalTime.TotalHours >= 1
+                ? $"{(int)totalTime.TotalHours}h {totalTime.Minutes}m"
+                : $"{totalTime.Minutes}m";
+    }
+    <div class="stats-grid stats-grid--3">
 
         <div class="card compact stat-card">
             <div class="stat-icon">📍</div>
             <div>
                 <div class="label">All-time distance</div>
                 <div class="value">@Model.Stats.TotalDistanceKm km</div>
+            </div>
+        </div>
+
+        <div class="card compact stat-card">
+            <div class="stat-icon">⚡</div>
+            <div>
+                <div class="label">Total activities</div>
+                <div class="value">@Model.Stats.TotalActivities</div>
+            </div>
+        </div>
+
+        <div class="card compact stat-card">
+            <div class="stat-icon">⛰️</div>
+            <div>
+                <div class="label">Total elevation</div>
+                <div class="value">@Math.Round(Model.Stats.TotalElevation) m</div>
             </div>
         </div>
 
@@ -65,10 +89,10 @@
         </div>
 
         <div class="card compact stat-card">
-            <div class="stat-icon">⛰️</div>
+            <div class="stat-icon">⏱️</div>
             <div>
-                <div class="label">Total elevation</div>
-                <div class="value">@Math.Round(Model.Stats.TotalElevation) m</div>
+                <div class="label">Total moving time</div>
+                <div class="value">@totalTimeStr</div>
             </div>
         </div>
 
@@ -188,6 +212,34 @@
                                 <div class="activity-meta">
                                     @act.StartDateLocal.ToString("MMM d yyyy · HH:mm")
                                 </div>
+                                @{
+                                    var hasElev    = act.TotalElevationGain >= 50;
+                                    var hasCommute = act.Commute;
+                                    var hasTrainer = act.Trainer;
+                                    var hasAchiev  = act.AchievementCount > 0;
+                                    var showTags   = hasElev || hasCommute || hasTrainer || hasAchiev;
+                                }
+                                @if (showTags)
+                                {
+                                    <div class="activity-tags">
+                                        @if (hasElev)
+                                        {
+                                            <span class="activity-tag activity-tag--elevation">⛰ @((int)act.TotalElevationGain)m</span>
+                                        }
+                                        @if (hasCommute)
+                                        {
+                                            <span class="activity-tag activity-tag--commute">🚌 Commute</span>
+                                        }
+                                        @if (hasTrainer)
+                                        {
+                                            <span class="activity-tag activity-tag--trainer">🏠 Indoor</span>
+                                        }
+                                        @if (hasAchiev)
+                                        {
+                                            <span class="activity-tag activity-tag--achievement">🏆 @act.AchievementCount</span>
+                                        }
+                                    </div>
+                                }
                             </div>
                         </div>
 

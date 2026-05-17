@@ -1,0 +1,312 @@
+@page
+@model IndexModel
+@{
+    ViewData["Title"] = "StrideVault Dashboard";
+}
+
+@functions {
+    static string ActivityIcon(string type) => type switch
+    {
+        "Run"                        => "🏃",
+        "Ride" or "VirtualRide"      => "🚴",
+        "Walk" or "Hike"             => "🚶",
+        "WeightTraining" or "Workout" => "💪",
+        "Swim"                       => "🏊",
+        _                            => "⚡"
+    };
+
+    static string ActivityTypeClass(string type) => type switch
+    {
+        "Run"                        => "run",
+        "Ride" or "VirtualRide"      => "ride",
+        "Walk" or "Hike"             => "walk",
+        "WeightTraining" or "Workout" => "workout",
+        _                            => "other"
+    };
+}
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<div class="app-shell">
+
+    @if (TempData["SyncSuccess"] is string ok)
+    {
+        <div class="flash flash-ok">@ok</div>
+    }
+    @if (TempData["SyncError"] is string err)
+    {
+        <div class="flash flash-err">@err</div>
+    }
+
+    <div class="topbar">
+        <h2>Activity Overview</h2>
+        <form method="post" asp-page="/Sync" style="display:contents">
+            <button type="submit" class="btn-primary">Sync</button>
+        </form>
+    </div>
+
+    <!-- STATS ROW -->
+    <div class="stats-grid stats-grid--4">
+
+        <div class="card compact stat-card">
+            <div class="stat-icon">📍</div>
+            <div>
+                <div class="label">All-time distance</div>
+                <div class="value">@Model.Stats.TotalDistanceKm km</div>
+            </div>
+        </div>
+
+        <div class="card compact stat-card">
+            <div class="stat-icon">📅</div>
+            <div>
+                <div class="label">Last 7 days</div>
+                <div class="value">@Model.Stats.WeeklyDistanceKm km</div>
+            </div>
+        </div>
+
+        <div class="card compact stat-card">
+            <div class="stat-icon">⛰️</div>
+            <div>
+                <div class="label">Total elevation</div>
+                <div class="value">@Math.Round(Model.Stats.TotalElevation) m</div>
+            </div>
+        </div>
+
+        <div class="card compact stat-card">
+            <div class="stat-icon">🗓️</div>
+            <div>
+                <div class="label">Active days (7d)</div>
+                <div class="value">@Model.Stats.ActiveDaysLast7 / 7</div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- HEATMAP -->
+    @{
+        var hmToday  = DateTime.Today;
+        var hmStart  = hmToday.AddDays(-363);
+        var hmOffset = ((int)hmStart.DayOfWeek + 6) % 7; // days since Monday
+        hmStart = hmStart.AddDays(-hmOffset);
+
+        var hmWeeks = new List<List<DateTime>>();
+        for (var cur = hmStart; cur <= hmToday; cur = cur.AddDays(7))
+            hmWeeks.Add(Enumerable.Range(0, 7).Select(i => cur.AddDays(i)).ToList());
+    }
+
+    <div class="card">
+        <div class="heatmap-header">
+            <span class="section-title" style="margin:0">Activity Heatmap</span>
+            <div style="display:flex;gap:8px;align-items:center">
+                @if (Model.LongestStreak > 0)
+                {
+                    <span class="streak-badge streak-badge--best">⭐ Best @Model.LongestStreak days</span>
+                }
+                @if (Model.CurrentStreak > 0)
+                {
+                    <span class="streak-badge">🔥 @Model.CurrentStreak day streak</span>
+                }
+            </div>
+        </div>
+
+        <div class="heatmap-wrap">
+            <div class="heatmap-inner">
+
+                <div class="heatmap-day-labels">
+                    <div>Mon</div><div></div><div>Wed</div><div></div><div>Fri</div><div></div><div>Sun</div>
+                </div>
+
+                <div class="heatmap-cols-wrap">
+
+                    <div class="heatmap-month-row">
+                        @for (var wi = 0; wi < hmWeeks.Count; wi++)
+                        {
+                            var wk    = hmWeeks[wi];
+                            var label = wi == 0 || wk[0].Month != hmWeeks[wi - 1][0].Month
+                                        ? wk[0].ToString("MMM") : "";
+                            <div class="heatmap-month-cell">@label</div>
+                        }
+                    </div>
+
+                    <div class="heatmap-grid">
+                        @foreach (var week in hmWeeks)
+                        {
+                            <div class="heatmap-col">
+                                @foreach (var day in week)
+                                {
+                                    var dist  = Model.HeatmapData.TryGetValue(day, out var km) ? km : 0;
+                                    var level = dist == 0 ? 0 : dist < 5 ? 1 : dist < 15 ? 2 : dist < 30 ? 3 : 4;
+                                    var cls   = $"hm hm-{level}{(day > hmToday ? " hm-future" : "")}";
+                                    var tip   = dist > 0 ? $"{day:MMM d}: {dist:0.0} km" : $"{day:MMM d}: rest";
+                                    <div class="@cls" title="@tip"></div>
+                                }
+                            </div>
+                        }
+                    </div>
+
+                </div>
+            </div>
+        </div>
+
+        <div class="heatmap-legend">
+            <span class="heatmap-legend-label">Less</span>
+            <div class="hm hm-0"></div>
+            <div class="hm hm-1"></div>
+            <div class="hm hm-2"></div>
+            <div class="hm hm-3"></div>
+            <div class="hm hm-4"></div>
+            <span class="heatmap-legend-label">More</span>
+            <span class="heatmap-legend-scale">&lt;5 · &lt;15 · &lt;30 · 30+ km</span>
+        </div>
+    </div>
+
+    <!-- MAIN GRID -->
+    <div class="dashboard-layout">
+
+        <!-- LEFT COLUMN -->
+        <div class="dashboard-main">
+
+            <!-- CHART -->
+            <div class="card">
+                <div class="section-title">Weekly Distance</div>
+                <canvas id="weeklyChart" height="120"></canvas>
+            </div>
+
+            <!-- ACTIVITY LIST -->
+            <div class="activity-list">
+
+                @foreach (var act in Model.Activities)
+                {
+                    <a asp-page="/Details" asp-route-id="@act.StravaId" class="activity-card">
+
+                        <div class="activity-card-body">
+                            <div class="activity-type-badge @ActivityTypeClass(act.Type)">
+                                @ActivityIcon(act.Type)
+                            </div>
+                            <div>
+                                <div class="activity-title">@act.Name</div>
+                                <div class="activity-meta">
+                                    @act.StartDateLocal.ToString("MMM d yyyy · HH:mm")
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="activity-card-right">
+                            <div class="distance">@Math.Round(act.Distance / 1000.0, 2) km</div>
+                            @if (act.Type == "Run" && act.MovingTime > 0 && act.Distance > 100)
+                            {
+                                var pace = act.MovingTime / (act.Distance / 1000.0);
+                                <div class="activity-sub">@TimeSpan.FromSeconds(pace).ToString(@"mm\:ss")/km</div>
+                            }
+                            else if ((act.Type == "Ride" || act.Type == "VirtualRide") && act.AverageSpeed > 0)
+                            {
+                                <div class="activity-sub">@Math.Round(act.AverageSpeed * 3.6, 1) km/h</div>
+                            }
+                        </div>
+
+                    </a>
+                }
+
+                @if (!Model.Activities.Any())
+                {
+                    <div class="empty-state">No activities yet — hit Sync to import from Strava.</div>
+                }
+
+            </div>
+
+            <!-- PAGINATION -->
+            <div class="pagination">
+
+                @if (Model.CurrentPage > 1)
+                {
+                    <a class="page-btn" asp-route-Type="@Model.Type" asp-route-CurrentPage="1">«</a>
+                    <a class="page-btn" asp-route-Type="@Model.Type" asp-route-CurrentPage="@(Model.CurrentPage - 1)">←</a>
+                }
+
+                <span class="page-current">@Model.CurrentPage / @Model.TotalPages</span>
+
+                @if (Model.CurrentPage < Model.TotalPages)
+                {
+                    <a class="page-btn" asp-route-Type="@Model.Type" asp-route-CurrentPage="@(Model.CurrentPage + 1)">→</a>
+                    <a class="page-btn" asp-route-Type="@Model.Type" asp-route-CurrentPage="@Model.TotalPages">»</a>
+                }
+
+            </div>
+
+        </div>
+
+        <!-- RIGHT SIDEBAR -->
+        <div class="sidebar">
+
+            <div class="card">
+                <div class="section-title">Filter by type</div>
+
+                <a class="sidebar-stat @(string.IsNullOrEmpty(Model.Type) ? "active" : "")"
+                       asp-route-Type="" asp-route-CurrentPage="1">
+                    <span>All</span>
+                    <span>@Model.Stats.TotalDistanceKm km</span>
+                </a>
+
+                <a class="sidebar-stat @(Model.Type == "Run" ? "active" : "")"
+                       asp-route-Type="Run" asp-route-CurrentPage="1">
+                    <span>🏃 Runs</span>
+                    <span class="sidebar-stat-right">
+                        <span>@Model.Stats.TotalRunDistanceKm km</span>
+                        <span class="sidebar-stat-count">@Model.Stats.TotalRuns acts</span>
+                    </span>
+                </a>
+
+                <a class="sidebar-stat @(Model.Type == "Ride" ? "active" : "")"
+                       asp-route-Type="Ride" asp-route-CurrentPage="1">
+                    <span>🚴 Rides</span>
+                    <span class="sidebar-stat-right">
+                        <span>@Model.Stats.TotalRideDistanceKm km</span>
+                        <span class="sidebar-stat-count">@Model.Stats.TotalRides acts</span>
+                    </span>
+                </a>
+
+                <a class="sidebar-stat @(Model.Type == "Walk" ? "active" : "")"
+                       asp-route-Type="Walk" asp-route-CurrentPage="1">
+                    <span>🚶 Walks</span>
+                    <span class="sidebar-stat-right">
+                        <span>@Model.Stats.TotalWalkDistanceKm km</span>
+                        <span class="sidebar-stat-count">@Model.Stats.TotalWalks acts</span>
+                    </span>
+                </a>
+
+            </div>
+
+        </div>
+
+    </div>
+</div>
+
+<script>
+    (function () {
+        const ctx = document.getElementById('weeklyChart').getContext('2d');
+
+        const gradient = ctx.createLinearGradient(0, 0, 0, 180);
+        gradient.addColorStop(0, 'rgba(77,166,255,0.5)');
+        gradient.addColorStop(1, 'rgba(77,166,255,0.05)');
+
+        new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.WeeklyLabels)),
+                datasets: [{
+                    data: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.WeeklyData)),
+                    backgroundColor: gradient,
+                    borderRadius: 6,
+                    borderSkipped: false
+                }]
+            },
+            options: {
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { grid: { display: false }, ticks: { color: '#6B7280' } },
+                    y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#6B7280', callback: v => v + ' km' }, beginAtZero: true }
+                }
+            }
+        });
+    })();
+</script>

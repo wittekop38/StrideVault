@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - StrideVault</title>
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+</head>
+<body>
+
+@{
+    var page = ViewContext.RouteData.Values["page"]?.ToString() ?? "";
+    string NavClass(string route) => page == route ? "nav-link nav-link--active" : "nav-link";
+}
+
+<nav class="nav">
+    <div class="nav-inner">
+        <a class="nav-brand" asp-page="/Index">StrideVault</a>
+        <ul class="nav-links">
+            <li><a class="@NavClass("/Index")"        asp-page="/Index">Home</a></li>
+            <li><a class="@NavClass("/Achievements")" asp-page="/Achievements">Achievements</a></li>
+            <li><a class="@NavClass("/Analytics")"    asp-page="/Analytics">Analytics</a></li>
+            <li><a class="@NavClass("/Planner")"      asp-page="/Planner">Planner</a></li>
+            <li><a class="@NavClass("/Map")"          asp-page="/Map">Map</a></li>
+        </ul>
+    </div>
+</nav>
+
+@RenderBody()
+
+<script src="~/js/site.js" asp-append-version="true"></script>
+@await RenderSectionAsync("Scripts", required: false)
+
+<script>
+    document.querySelectorAll('.card, .activity-card, .hero-card, .sidebar-stat, .analytics-chart-card')
+        .forEach(el => {
+            el.addEventListener('mousemove', e => {
+                const r = el.getBoundingClientRect();
+                el.style.setProperty('--x', `${e.clientX - r.left}px`);
+                el.style.setProperty('--y', `${e.clientY - r.top}px`);
+            });
+        });
+</script>
+
+</body>
+</html>

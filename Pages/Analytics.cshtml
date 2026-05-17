@@ -1,0 +1,286 @@
+﻿@page
+@model AnalyticsModel
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<div class="app-shell analytics-container">
+
+    <h1 class="analytics-title">Analytics</h1>
+
+    <!-- FILTERS -->
+    <div class="analytics-filters">
+
+        <a asp-route-Range="all"
+           class="analytics-filter @(Model.Range == "all" ? "active" : "")">
+            All Time
+        </a>
+
+        <a asp-route-Range="month"
+           class="analytics-filter @(Model.Range == "month" ? "active" : "")">
+            Last 30d
+        </a>
+
+        <div class="analytics-year">
+            <a asp-route-Range="year"
+               class="analytics-filter @(Model.Range == "year" ? "active" : "")">
+                Year
+            </a>
+
+            <select class="analytics-select"
+                    onchange="location = '?Range=year&Year=' + this.value">
+
+                @foreach (var y in Model.AvailableYears)
+                {
+                    <option value="@y" selected="@(Model.Year == y ? "selected" : null)">
+                        @y
+                    </option>
+                }
+
+            </select>
+        </div>
+
+        <button onclick="toggleMode()" class="analytics-filter" id="modeBtn">
+            Cumulative
+        </button>
+
+        @if (Model.HasCompare)
+        {
+            <button onclick="toggleCompare()" class="analytics-filter" id="compareBtn">
+                vs @Model.CompareYear
+            </button>
+        }
+
+    </div>
+
+    <!-- CHARTS -->
+    <div class="analytics-charts">
+
+        <div class="analytics-chart-card">
+            <div class="analytics-chart-title">
+                🚴 Ride Distance
+                @if (Model.RideTotals.Any())
+                {
+                    <span class="analytics-chart-total">@Model.RideTotals.Last().ToString("0.#") km</span>
+                }
+            </div>
+            <canvas id="rideChart"></canvas>
+        </div>
+
+        <div class="analytics-chart-card">
+            <div class="analytics-chart-title">
+                🏃 Run Distance
+                @if (Model.RunTotals.Any())
+                {
+                    <span class="analytics-chart-total">@Model.RunTotals.Last().ToString("0.#") km</span>
+                }
+            </div>
+            <canvas id="runChart"></canvas>
+        </div>
+
+        <div class="analytics-chart-card">
+            <div class="analytics-chart-title">
+                🚶 Walk Distance
+                @if (Model.WalkTotals.Any())
+                {
+                    <span class="analytics-chart-total">@Model.WalkTotals.Last().ToString("0.#") km</span>
+                }
+            </div>
+            <canvas id="walkChart"></canvas>
+        </div>
+
+    </div>
+
+</div>
+<script>
+    const labels = @Html.Raw(Json.Serialize(Model.Labels));
+
+    const ridesRaw = @Html.Raw(Json.Serialize(Model.RideTotalsRaw));
+    const runsRaw  = @Html.Raw(Json.Serialize(Model.RunTotalsRaw));
+    const walksRaw = @Html.Raw(Json.Serialize(Model.WalkTotalsRaw));
+
+    const ridesCum = @Html.Raw(Json.Serialize(Model.RideTotals));
+    const runsCum  = @Html.Raw(Json.Serialize(Model.RunTotals));
+    const walksCum = @Html.Raw(Json.Serialize(Model.WalkTotals));
+
+    // Previous-year comparison (cumulative, same 12 labels — empty when not "year" range)
+    const ridesPrev = @Html.Raw(Json.Serialize(Model.RideCompare));
+    const runsPrev  = @Html.Raw(Json.Serialize(Model.RunCompare));
+    const walksPrev = @Html.Raw(Json.Serialize(Model.WalkCompare));
+    const compareYear = @Model.CompareYear;
+
+    let cumulative = localStorage.getItem("chartMode") !== "raw";
+    let showCompare = false;
+
+    let rideChart = null;
+    let runChart = null;
+    let walkChart = null;
+
+    function makeChart(id, data, compareData) {
+        const ctx = document.getElementById(id).getContext('2d');
+
+        const gradient = ctx.createLinearGradient(0, 0, 0, 260);
+        gradient.addColorStop(0, "rgba(77,166,255,0.35)");
+        gradient.addColorStop(1, "rgba(77,166,255,0.02)");
+
+        const crosshair = {
+            id: 'crosshair',
+            afterDraw(chart) {
+                if (chart.tooltip?._active?.length) {
+                    const ctx = chart.ctx;
+                    const x = chart.tooltip._active[0].element.x;
+
+                    ctx.save();
+                    ctx.beginPath();
+                    ctx.moveTo(x, chart.scales.y.top);
+                    ctx.lineTo(x, chart.scales.y.bottom);
+                    ctx.lineWidth = 1;
+                    ctx.strokeStyle = '#4DA6FF55';
+                    ctx.stroke();
+                    ctx.restore();
+                }
+            }
+        };
+
+        return new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [
+                    {
+                        label: 'This year',
+                        data: data,
+                        tension: 0.4,
+                        fill: true,
+                        backgroundColor: gradient,
+                        borderColor: '#4DA6FF',
+                        borderWidth: 2,
+                        pointRadius: 0
+                    },
+                    {
+                        label: compareYear ? String(compareYear) : 'Last year',
+                        data: compareData || [],
+                        tension: 0.4,
+                        fill: false,
+                        borderColor: 'rgba(168,85,247,0.65)',
+                        borderWidth: 2,
+                        borderDash: [5, 4],
+                        pointRadius: 0,
+                        hidden: true
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+
+                layout: {
+                    padding: { bottom: 16 }
+                },
+
+                animation: {
+                    duration: 800,
+                    easing: 'easeOutQuart'
+                },
+
+                interaction: {
+                    mode: 'index',
+                    intersect: false
+                },
+
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        backgroundColor: '#181a1b',
+                        borderColor: '#4DA6FF',
+                        borderWidth: 1,
+                        padding: 10,
+                        displayColors: false,
+                        callbacks: {
+                            title: (ctx) => ctx[0].label,
+                            label: (ctx) => `${ctx.raw.toFixed(2)} km`
+                        }
+                    }
+                },
+
+                scales: {
+                    x: {
+                        ticks: {
+                            color: "#6B7280",
+                            autoSkip: true,
+                            maxTicksLimit: 6,
+                            padding: 10
+                        },
+                        grid: { display: false }
+                    },
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            color: "#6B7280",
+                            callback: v => v + " km"
+                        },
+                        grid: {
+                            color: "#242526"
+                        }
+                    }
+                },
+
+                elements: {
+                    point: {
+                        radius: 0,
+                        hoverRadius: 6,
+                        backgroundColor: '#4DA6FF'
+                    }
+                }
+            },
+            plugins: [crosshair]
+        });
+    }
+
+    function updateChart(chart, newData) {
+        chart.data.datasets[0].data = newData;
+        chart.update();
+    }
+
+    function renderCharts() {
+        const r  = cumulative ? ridesCum : ridesRaw;
+        const ru = cumulative ? runsCum  : runsRaw;
+        const w  = cumulative ? walksCum : walksRaw;
+
+        if (!rideChart) {
+            rideChart = makeChart('rideChart', r,  ridesPrev);
+            runChart  = makeChart('runChart',  ru, runsPrev);
+            walkChart = makeChart('walkChart', w,  walksPrev);
+            return;
+        }
+
+        updateChart(rideChart, r);
+        updateChart(runChart,  ru);
+        updateChart(walkChart, w);
+    }
+
+    function toggleMode() {
+        cumulative = !cumulative;
+        localStorage.setItem("chartMode", cumulative ? "cum" : "raw");
+        document.getElementById("modeBtn").innerText =
+            cumulative ? "Cumulative" : "Per Period";
+        renderCharts();
+    }
+
+    function toggleCompare() {
+        showCompare = !showCompare;
+        const btn = document.getElementById("compareBtn");
+        if (btn) btn.classList.toggle("active", showCompare);
+        [rideChart, runChart, walkChart].forEach(c => {
+            if (!c) return;
+            c.data.datasets[1].hidden = !showCompare;
+            c.update();
+        });
+    }
+
+    document.addEventListener("DOMContentLoaded", function () {
+        document.getElementById("modeBtn").innerText =
+            cumulative ? "Cumulative" : "Per Period";
+
+        renderCharts();
+    });
+</script>

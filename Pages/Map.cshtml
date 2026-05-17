@@ -1,0 +1,121 @@
+@page
+@model MapModel
+
+<div class="app-shell map-shell">
+
+    <div class="map-controls">
+        <button onclick="showLines()">Lines</button>
+        <button onclick="showHeat()">Heat</button>
+    </div>
+
+    <div id="cesiumContainer" class="cesium-container"></div>
+
+</div>
+
+<link href="https://cesium.com/downloads/cesiumjs/releases/1.111/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
+<script src="https://cesium.com/downloads/cesiumjs/releases/1.111/Build/Cesium/Cesium.js"></script>
+
+<script>
+    window.CESIUM_BASE_URL = "https://cesium.com/downloads/cesiumjs/releases/1.111/Build/Cesium/";
+    Cesium.Ion.defaultAccessToken = "@Model.CesiumToken";
+
+    let viewer = null;
+    let routes = [];
+    let entities = [];
+
+    document.addEventListener("DOMContentLoaded", async () => {
+        try {
+            const imageryModels = Cesium.createDefaultImageryProviderViewModels();
+
+            const stadia = imageryModels.find(m =>
+                m.name.includes("Stadia") && m.name.includes("Dark")
+            );
+
+            viewer = new Cesium.Viewer("cesiumContainer", {
+                terrainProvider: await Cesium.createWorldTerrainAsync(),
+                animation: false,
+                timeline: false,
+                baseLayerPicker: true,
+                geocoder: false,
+                navigationHelpButton: false,
+                infoBox: false,
+                selectionIndicator: false,
+                imageryProviderViewModels: imageryModels,
+                selectedImageryProviderViewModel: stadia
+            });
+
+            viewer.scene.camera.flyTo({
+                destination: Cesium.Cartesian3.fromDegrees(0, 20, 20000000),
+                duration: 1.5
+            });
+
+            const res = await fetch("/Map?handler=Polylines");
+            if (!res.ok) throw new Error("Failed to load polylines");
+
+            routes = await res.json();
+            drawLines();
+
+        } catch (err) {
+            console.error("Map init failed:", err);
+        }
+    });
+
+    // decodePolyline is provided by site.js — returns [lat, lng] pairs.
+    // Cesium.Cartesian3.fromDegrees(lng, lat) so arguments are swapped: c[1], c[0].
+
+    function drawLines() {
+        if (!viewer || !routes.length) return;
+
+        clear();
+
+        routes.forEach(r => {
+            const encoded = r.polyline || r.Polyline;
+            if (!encoded) return;
+
+            const positions = decodePolyline(encoded).map(c =>
+                Cesium.Cartesian3.fromDegrees(c[1], c[0])
+            );
+
+            entities.push(viewer.entities.add({
+                polyline: {
+                    positions,
+                    width: 3,
+                    material: Cesium.Color.fromCssColorString("#3b82f6").withAlpha(0.85),
+                    clampToGround: true
+                }
+            }));
+        });
+
+        viewer.zoomTo(viewer.entities);
+    }
+
+    function showHeat() {
+        if (!viewer || !routes.length) return;
+
+        clear();
+
+        routes.forEach(r => {
+            const encoded = r.polyline || r.Polyline;
+            if (!encoded) return;
+
+            decodePolyline(encoded).forEach(c => {
+                entities.push(viewer.entities.add({
+                    position: Cesium.Cartesian3.fromDegrees(c[1], c[0]),
+                    point: {
+                        pixelSize: 3,
+                        color: Cesium.Color.RED.withAlpha(0.25)
+                    }
+                }));
+            });
+        });
+    }
+
+    function clear() {
+        if (!viewer) return;
+        entities.forEach(e => viewer.entities.remove(e));
+        entities = [];
+    }
+
+    window.showLines = drawLines;
+    window.showHeat = showHeat;
+</script>

@@ -1,0 +1,173 @@
+@page
+@model AchievementsModel
+
+@functions {
+    string Medal(int i) => i switch
+    {
+        0 => "🥇",
+        1 => "🥈",
+        2 => "🥉",
+        _ => $"#{i + 1}"
+    };
+}
+
+<div class="app-shell achievements-container">
+
+    <h1 class="achievements-title">Achievements</h1>
+
+    <!-- HERO: fastest per type -->
+    <div class="hero-grid">
+
+        @if (Model.FastestRide != null)
+        {
+            <a asp-page="/Details" asp-route-id="@Model.FastestRide.StravaId" class="hero-card">
+                <div>🚴 Fastest Ride</div>
+                <div>@Math.Round(Model.FastestRide.AverageSpeed * 3.6, 1) km/h</div>
+            </a>
+        }
+
+        @if (Model.FastestRun != null)
+        {
+            <a asp-page="/Details" asp-route-id="@Model.FastestRun.StravaId" class="hero-card">
+                <div>🏃 Fastest Run</div>
+                <div>@Math.Round(Model.FastestRun.AverageSpeed * 3.6, 1) km/h</div>
+            </a>
+        }
+
+        @if (Model.FastestWalk != null)
+        {
+            <a asp-page="/Details" asp-route-id="@Model.FastestWalk.StravaId" class="hero-card">
+                <div>⚡ Fastest Walk</div>
+                <div>@Math.Round(Model.FastestWalk.AverageSpeed * 3.6, 1) km/h</div>
+            </a>
+        }
+
+    </div>
+
+    <!-- MILESTONES -->
+    <div class="milestones-section">
+        <div class="section-title">Milestones</div>
+        <div class="milestones-grid">
+            @foreach (var m in Model.Milestones)
+            {
+                <div class="milestone-card @(m.Unlocked ? "milestone-unlocked" : "milestone-locked")">
+                    <div class="milestone-icon">@m.Icon</div>
+                    <div class="milestone-body">
+                        <div class="milestone-title">@m.Title</div>
+                        <div class="milestone-desc">@m.Description</div>
+                        @if (m.AchievedOn != null)
+                        {
+                            <div class="milestone-date">@m.AchievedOn</div>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+
+    <!-- LEADERBOARDS -->
+    <div class="achievements-grid">
+
+        <!-- 🚴 LONGEST RIDES -->
+        <div class="achievements-section">
+            <div class="achievements-section-title">🚴 Longest Rides</div>
+
+            @for (int i = 0; i < Model.LongestRides.Count; i++)
+            {
+                var a = Model.LongestRides[i];
+                <a asp-page="/Details" asp-route-id="@a.StravaId" class="leaderboard-item rank-@i">
+                    <div class="rank">@Medal(i)</div>
+                    <div>
+                        <div class="achievement-name">@a.Name</div>
+                        <div class="achievement-meta">
+                            @Math.Round(a.Distance / 1000, 2) km
+                            · @a.StartDateLocal.ToString("MMM d, yyyy")
+                        </div>
+                    </div>
+                </a>
+            }
+        </div>
+
+        <!-- 🏃 LONGEST RUNS -->
+        <div class="achievements-section">
+            <div class="achievements-section-title">🏃 Longest Runs</div>
+
+            @for (int i = 0; i < Model.LongestRuns.Count; i++)
+            {
+                var a = Model.LongestRuns[i];
+                <a asp-page="/Details" asp-route-id="@a.StravaId" class="leaderboard-item rank-@i">
+                    <div class="rank">@Medal(i)</div>
+                    <div>
+                        <div class="achievement-name">@a.Name</div>
+                        <div class="achievement-meta">
+                            @Math.Round(a.Distance / 1000, 2) km
+                            · @a.StartDateLocal.ToString("MMM d, yyyy")
+                        </div>
+                    </div>
+                </a>
+            }
+        </div>
+
+        <!-- ⚡ FASTEST RIDES -->
+        <div class="achievements-section">
+            <div class="achievements-section-title">⚡ Fastest Rides</div>
+
+            @for (int i = 0; i < Model.FastestRides.Count; i++)
+            {
+                var a = Model.FastestRides[i];
+                <a asp-page="/Details" asp-route-id="@a.StravaId" class="leaderboard-item rank-@i">
+                    <div class="rank">@Medal(i)</div>
+                    <div>
+                        <div class="achievement-name">@a.Name</div>
+                        <div class="achievement-meta">
+                            @Math.Round(a.AverageSpeed * 3.6, 1) km/h
+                            · @a.StartDateLocal.ToString("MMM d, yyyy")
+                        </div>
+                    </div>
+                </a>
+            }
+        </div>
+
+        <!-- 🔥 FASTEST RUNS (by pace) -->
+        <div class="achievements-section">
+            <div class="achievements-section-title">🔥 Fastest Runs</div>
+
+            @for (int i = 0; i < Model.FastestRuns.Count; i++)
+            {
+                var a    = Model.FastestRuns[i];
+                var pace = a.MovingTime / (a.Distance / 1000);
+                <a asp-page="/Details" asp-route-id="@a.StravaId" class="leaderboard-item rank-@i">
+                    <div class="rank">@Medal(i)</div>
+                    <div>
+                        <div class="achievement-name">@a.Name</div>
+                        <div class="achievement-meta">
+                            @TimeSpan.FromSeconds(pace).ToString(@"mm\:ss") /km
+                            · @a.StartDateLocal.ToString("MMM d, yyyy")
+                        </div>
+                    </div>
+                </a>
+            }
+        </div>
+
+        <!-- 🚶 LONGEST WALKS -->
+        <div class="achievements-section">
+            <div class="achievements-section-title">🚶 Longest Walks</div>
+
+            @for (int i = 0; i < Model.LongestWalks.Count; i++)
+            {
+                var a = Model.LongestWalks[i];
+                <a asp-page="/Details" asp-route-id="@a.StravaId" class="leaderboard-item rank-@i">
+                    <div class="rank">@Medal(i)</div>
+                    <div>
+                        <div class="achievement-name">@a.Name</div>
+                        <div class="achievement-meta">
+                            @Math.Round(a.Distance / 1000, 2) km
+                            · @a.StartDateLocal.ToString("MMM d, yyyy")
+                        </div>
+                    </div>
+                </a>
+            }
+        </div>
+
+    </div>
+</div>

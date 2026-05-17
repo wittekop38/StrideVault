@@ -1,0 +1,111 @@
+@page
+@model DetailsModel
+
+<div class="app-shell details-container">
+
+    <div class="details-header">
+        <h1 class="details-title">@Model.Activity.Name</h1>
+        <div class="details-sub">
+            @Model.Activity.StartDateLocal.ToString("MMMM d, yyyy · HH:mm") · @Model.Activity.Type
+        </div>
+    </div>
+
+    <div class="details-grid">
+
+        <!-- MAP -->
+        <div class="card details-map-card">
+            <div id="map" class="map-container"></div>
+        </div>
+
+        <!-- STATS -->
+        <div class="details-stats">
+
+            <div class="card compact stat-card">
+                <div class="stat-icon">📍</div>
+                <div>
+                    <div class="label">Distance</div>
+                    <div class="value">@Math.Round(Model.Details.Distance / 1000, 2) km</div>
+                </div>
+            </div>
+
+            <div class="card compact stat-card">
+                <div class="stat-icon">⏱️</div>
+                <div>
+                    <div class="label">Moving time</div>
+                    <div class="value">@TimeSpan.FromSeconds(Model.Details.MovingTime).ToString(@"h\:mm\:ss")</div>
+                </div>
+            </div>
+
+            <div class="card compact stat-card">
+                <div class="stat-icon">⛰️</div>
+                <div>
+                    <div class="label">Elevation</div>
+                    <div class="value">@Model.Details.ElevationGain m</div>
+                </div>
+            </div>
+
+            <div class="card compact stat-card">
+                <div class="stat-icon">⚡</div>
+                <div>
+                    <div class="label">Avg speed</div>
+                    <div class="value">@Math.Round(Model.Details.AverageSpeed * 3.6, 1) km/h</div>
+                </div>
+            </div>
+
+            <div class="card compact stat-card">
+                <div class="stat-icon">💨</div>
+                <div>
+                    <div class="label">Max speed</div>
+                    <div class="value">@Math.Round(Model.Details.MaxSpeed * 3.6, 1) km/h</div>
+                </div>
+            </div>
+
+            @if (Model.Details.Calories.HasValue && Model.Details.Calories > 0)
+            {
+                <div class="card compact stat-card">
+                    <div class="stat-icon">🔥</div>
+                    <div>
+                        <div class="label">Calories</div>
+                        <div class="value">@Math.Round(Model.Details.Calories.Value) kcal</div>
+                    </div>
+                </div>
+            }
+
+            @if (Model.Details.AverageWatts.HasValue && Model.Details.AverageWatts > 0)
+            {
+                <div class="card compact stat-card">
+                    <div class="stat-icon">⚙️</div>
+                    <div>
+                        <div class="label">Avg power</div>
+                        <div class="value">@Math.Round(Model.Details.AverageWatts.Value) W</div>
+                    </div>
+                </div>
+            }
+
+        </div>
+
+    </div>
+</div>
+
+<link href="https://unpkg.com/leaflet/dist/leaflet.css" rel="stylesheet" />
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+<script>
+    // DOMContentLoaded guarantees site.js (which defines decodePolyline) has already
+    // executed — site.js is a synchronous script that runs before this event fires.
+    document.addEventListener('DOMContentLoaded', function () {
+        const encoded = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.Details.Polyline));
+        if (!encoded) return;
+
+        const map = L.map('map');
+
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+            attribution: '© OpenStreetMap contributors, © CARTO',
+            subdomains: 'abcd',
+            maxZoom: 20
+        }).addTo(map);
+
+        const route = L.polyline(decodePolyline(encoded), { color: '#4DA6FF', weight: 3 }).addTo(map);
+        map.fitBounds(route.getBounds(), { padding: [16, 16] });
+    });
+</script>

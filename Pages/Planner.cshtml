@@ -1,0 +1,135 @@
+@page
+@model PlannerModel
+
+@functions {
+    static string TypeClass(string type) => type switch
+    {
+        "Run"                         => "run",
+        "Ride" or "VirtualRide"       => "ride",
+        "Walk" or "Hike"              => "walk",
+        "WeightTraining" or "Workout" => "workout",
+        _                             => "other"
+    };
+
+    // Left-border load class based on ratio to monthly average
+    string LoadClass(double distanceMetres)
+    {
+        if (Model.MonthAvgDistanceKm <= 0) return "";
+        var ratio = (distanceMetres / 1000.0) / Model.MonthAvgDistanceKm;
+        return ratio < 0.75 ? "load-easy" : ratio < 1.5 ? "load-moderate" : "load-hard";
+    }
+}
+
+<div class="app-shell">
+
+    <!-- HEADER -->
+    <div class="topbar">
+        <a asp-page="./Planner"
+           asp-route-month="@Model.StartDate.AddMonths(-1).Month"
+           asp-route-year="@Model.StartDate.AddMonths(-1).Year">←</a>
+
+        <h2>@Model.StartDate.ToString("MMMM yyyy")</h2>
+
+        <a asp-page="./Planner"
+           asp-route-month="@Model.StartDate.AddMonths(1).Month"
+           asp-route-year="@Model.StartDate.AddMonths(1).Year">→</a>
+    </div>
+
+    <!-- MAIN -->
+    <div class="planner-layout">
+
+        <!-- CALENDAR -->
+        <div class="calendar">
+
+            <div class="weekdays">
+                <div>Mon</div><div>Tue</div><div>Wed</div>
+                <div>Thu</div><div>Fri</div><div>Sat</div><div>Sun</div>
+            </div>
+
+            <div class="calendar-grid">
+
+                @{
+                    var firstDay = new DateTime(Model.StartDate.Year, Model.StartDate.Month, 1);
+                    int offset   = ((int)firstDay.DayOfWeek + 6) % 7;
+                }
+
+                @for (int i = 0; i < offset; i++)
+                {
+                    <div class="calendar-empty"></div>
+                }
+
+                @for (int i = 1; i <= DateTime.DaysInMonth(Model.StartDate.Year, Model.StartDate.Month); i++)
+                {
+                    var date = new DateTime(Model.StartDate.Year, Model.StartDate.Month, i);
+                    var day  = Model.Days.TryGetValue(date, out var ds) ? ds : null;
+                    var loadCls = day != null ? LoadClass(day.TotalDistance) : "";
+
+                    <div class="calendar-day @(day != null ? "has-activity " + loadCls : "")">
+
+                        <div class="calendar-date">
+                            @i
+                            @if (day != null)
+                            {
+                                <span class="type-dots">
+                                    @foreach (var e in day.Entries.DistinctBy(e => e.Type))
+                                    {
+                                        <span class="type-dot @TypeClass(e.Type)"></span>
+                                    }
+                                </span>
+                            }
+                        </div>
+
+                        @if (day != null)
+                        {
+                            if (day.ActivityCount == 1)
+                            {
+                                var e = day.Entries[0];
+                                <a asp-page="/Details" asp-route-id="@e.StravaId" class="calendar-data calendar-link">
+                                    <div>@((e.Distance / 1000.0).ToString("0.0")) km</div>
+                                    <div style="color:var(--muted)">@Model.FormatTime(e.MovingTime)</div>
+                                </a>
+                            }
+                            else
+                            {
+                                <div class="calendar-data calendar-multi">
+                                    @foreach (var e in day.Entries)
+                                    {
+                                        <a asp-page="/Details" asp-route-id="@e.StravaId" class="calendar-multi-entry">
+                                            <span class="type-dot @TypeClass(e.Type)"></span>
+                                            <span>@((e.Distance / 1000.0).ToString("0.0")) km</span>
+                                        </a>
+                                    }
+                                </div>
+                            }
+                        }
+
+                    </div>
+                }
+            </div>
+        </div>
+
+        <!-- WEEKLY -->
+        <div class="weekly">
+
+            <h3>Weekly Totals</h3>
+
+            <div class="week-row week-header">
+                <div>Week</div>
+                <div>Time</div>
+                <div>Distance</div>
+                <div>Calories</div>
+            </div>
+
+            @foreach (var w in Model.Weekly)
+            {
+                <div class="week-row">
+                    <div>@w.Week</div>
+                    <div>@Model.FormatTime(w.TotalTime)</div>
+                    <div>@((w.TotalDistance / 1000.0).ToString("0.0")) km</div>
+                    <div>@(w.Calories?.ToString("0") ?? "-")</div>
+                </div>
+            }
+        </div>
+
+    </div>
+</div>

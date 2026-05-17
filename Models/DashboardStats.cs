@@ -18,5 +18,8 @@ namespace StrideVault.Models
         public double WeeklyElevation { get; set; }
 
         public int ActiveDaysLast7 { get; set; }
+
+        public int TotalActivities { get; set; }
+        public long TotalMovingTimeSecs { get; set; }
     }
 }

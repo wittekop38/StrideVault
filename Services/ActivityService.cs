@@ -90,10 +90,11 @@ public class ActivityService
             .GroupBy(a => a.Type)
             .Select(g => new
             {
-                Type      = g.Key,
-                Distance  = g.Sum(a => a.Distance),
-                Count     = g.Count(),
-                Elevation = g.Sum(a => a.TotalElevationGain)
+                Type       = g.Key,
+                Distance   = g.Sum(a => a.Distance),
+                Count      = g.Count(),
+                Elevation  = g.Sum(a => a.TotalElevationGain),
+                MovingTime = g.Sum(a => (long)a.MovingTime)
             })
             .ToListAsync(ct);
 
@@ -125,7 +126,9 @@ public class ActivityService
             TotalWeightTraining = workout?.Count ?? 0,
             TotalElevation      = byType.Sum(t => t.Elevation),
             WeeklyElevation     = weekly.Sum(w => w.Elevation),
-            ActiveDaysLast7     = weekly.Count
+            ActiveDaysLast7     = weekly.Count,
+            TotalActivities     = byType.Sum(t => t.Count),
+            TotalMovingTimeSecs = byType.Sum(t => t.MovingTime)
         };
     }
 

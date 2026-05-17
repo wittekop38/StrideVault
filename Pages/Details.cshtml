@@ -7,7 +7,41 @@
         <h1 class="details-title">@Model.Activity.Name</h1>
         <div class="details-sub">
             @Model.Activity.StartDateLocal.ToString("MMMM d, yyyy · HH:mm") · @Model.Activity.Type
+            @if (Model.Activity.Commute)
+            {
+                <span class="details-badge details-badge--commute">🚌 Commute</span>
+            }
+            @if (Model.Activity.Trainer)
+            {
+                <span class="details-badge details-badge--trainer">🏠 Indoor</span>
+            }
         </div>
+
+        @{
+            var hasSocial = Model.Activity.KudosCount > 0 || Model.Activity.AchievementCount > 0 || Model.Activity.CommentCount > 0;
+        }
+        @if (hasSocial)
+        {
+            <div class="social-stats">
+                @if (Model.Activity.KudosCount > 0)
+                {
+                    <span class="social-stat"><span class="social-stat-count">@Model.Activity.KudosCount</span> kudos</span>
+                }
+                @if (Model.Activity.AchievementCount > 0)
+                {
+                    <span class="social-stat">🏆 <span class="social-stat-count">@Model.Activity.AchievementCount</span> achievements</span>
+                }
+                @if (Model.Activity.CommentCount > 0)
+                {
+                    <span class="social-stat">💬 <span class="social-stat-count">@Model.Activity.CommentCount</span> comments</span>
+                }
+            </div>
+        }
+
+        @if (!string.IsNullOrWhiteSpace(Model.Activity.Description))
+        {
+            <div class="details-description">@Model.Activity.Description</div>
+        }
     </div>
 
     <div class="details-grid">
@@ -78,6 +112,29 @@
                     <div>
                         <div class="label">Avg power</div>
                         <div class="value">@Math.Round(Model.Details.AverageWatts.Value) W</div>
+                    </div>
+                </div>
+            }
+
+            @if (Model.Activity.Type == "Run" && Model.Details.MovingTime > 0 && Model.Details.Distance > 100)
+            {
+                var pace = Model.Details.MovingTime / (Model.Details.Distance / 1000.0);
+                <div class="card compact stat-card">
+                    <div class="stat-icon">🏃</div>
+                    <div>
+                        <div class="label">Pace</div>
+                        <div class="value">@TimeSpan.FromSeconds(pace).ToString(@"mm\:ss") /km</div>
+                    </div>
+                </div>
+            }
+
+            @if (Model.Activity.SufferScore.HasValue && Model.Activity.SufferScore > 0)
+            {
+                <div class="card compact stat-card">
+                    <div class="stat-icon">💢</div>
+                    <div>
+                        <div class="label">Suffer score</div>
+                        <div class="value">@Model.Activity.SufferScore</div>
                     </div>
                 </div>
             }
